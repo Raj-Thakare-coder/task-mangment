@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NoteStack — Full-Stack Demo</title>
+<link rel="stylesheet" href="style.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ AUTH SCREEN ═══ -->
+<div id="auth-screen" class="screen active">
+  <div class="auth-bg">
+    <div class="auth-blob b1"></div>
+    <div class="auth-blob b2"></div>
+    <div class="auth-blob b3"></div>
+  </div>
+
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">RajStack</span>
+      </div>
+      <p class="auth-tagline">SA-135</p>
+
+      <!-- Tabs -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchAuthTab('login')">Sign In</button>
+        <button class="auth-tab" onclick="switchAuthTab('register')">Create Account</button>
+      </div>
+
+      <!-- Login Form -->
+      <div id="login-form" class="auth-form">
+        <div class="field-group">
+          <label>Email address</label>
+          <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email"/>
+        </div>
+        <div class="field-group">
+          <label>Password</label>
+          <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"/>
+        </div>
+        <div id="login-error" class="form-error hidden"></div>
+        <button class="btn-primary full" onclick="handleLogin()">
+          <span>Sign in</span>
+          <span class="btn-icon">→</span>
+        </button>
+        <p class="form-hint">Demo: register any account, then sign in.</p>
+      </div>
+
+      <!-- Register Form -->
+      <div id="register-form" class="auth-form hidden">
+        <div class="field-group">
+          <label>Full name</label>
+          <input type="text" id="reg-name" placeholder="Alice Smith"/>
+        </div>
+        <div class="field-group">
+          <label>Email address</label>
+          <input type="email" id="reg-email" placeholder="you@example.com"/>
+        </div>
+        <div class="field-group">
+          <label>Password <span class="hint-inline">(min 6 chars)</span></label>
+          <input type="password" id="reg-password" placeholder="••••••••"/>
+        </div>
+        <div id="reg-error" class="form-error hidden"></div>
+        <button class="btn-primary full" onclick="handleRegister()">
+          <span>Create account</span>
+          <span class="btn-icon">→</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ APP SCREEN ═══ -->
+<div id="app-screen" class="screen hidden">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="logo-icon sm">◈</span>
+      <span class="logo-text sm">NoteStack</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" onclick="showView('notes')" data-view="notes">
+        <span class="nav-icon">◧</span> My Notes
+      </button>
+      <button class="nav-item" onclick="showView('api')" data-view="api">
+        <span class="nav-icon">⟨/⟩</span> API Console
+      </button>
+      <button class="nav-item" onclick="showView('profile')" data-view="profile">
+        <span class="nav-icon">◎</span> Profile
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar" id="sidebar-avatar">A</div>
+        <div class="user-info">
+          <span class="user-name" id="sidebar-name">Loading…</span>
+          <span class="user-email" id="sidebar-email"></span>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="handleLogout()" title="Sign out">⏻</button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- ─── NOTES VIEW ─── -->
+    <div id="view-notes" class="view active">
+      <div class="view-header">
+        <div>
+          <h1 class="view-title">My Notes</h1>
+          <p class="view-subtitle">Create, read, update and delete your notes</p>
+        </div>
+        <button class="btn-primary" onclick="openModal()">+ New Note</button>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterNotes('all', this)">All</button>
+        <button class="filter-btn" onclick="filterNotes('Work', this)">Work</button>
+        <button class="filter-btn" onclick="filterNotes('Personal', this)">Personal</button>
+        <button class="filter-btn" onclick="filterNotes('Ideas', this)">Ideas</button>
+        <button class="filter-btn" onclick="filterNotes('General', this)">General</button>
+        <input class="search-input" placeholder="Search notes…" oninput="searchNotes(this.value)"/>
+      </div>
+
+      <div id="notes-grid" class="notes-grid"></div>
+      <div id="notes-empty" class="empty-state hidden">
+        <span class="empty-icon">◈</span>
+        <p>No notes yet. Create your first one!</p>
+      </div>
+    </div>
+
+    <!-- ─── API CONSOLE VIEW ─── -->
+    <div id="view-api" class="view hidden">
+      <div class="view-header">
+        <div>
+          <h1 class="view-title">API Console</h1>
+          <p class="view-subtitle">Live client–server interaction log</p>
+        </div>
+        <button class="btn-secondary" onclick="clearLog()">Clear log</button>
+      </div>
+
+      <!-- Endpoint buttons -->
+      <div class="endpoint-grid">
+        <button class="endpoint-btn post" onclick="apiTest('POST','/api/notes',{title:'Test note',content:'Hello API',category:'General'})">
+          <span class="method-badge post">POST</span>
+          <span>/api/notes</span>
+          <span class="ep-desc">Create note</span>
+        </button>
+        <button class="endpoint-btn get" onclick="apiTest('GET','/api/notes')">
+          <span class="method-badge get">GET</span>
+          <span>/api/notes</span>
+          <span class="ep-desc">List all notes</span>
+        </button>
+        <button class="endpoint-btn get" onclick="apiTestOne()">
+          <span class="method-badge get">GET</span>
+          <span>/api/notes/:id</span>
+          <span class="ep-desc">Get one note</span>
+        </button>
+        <button class="endpoint-btn put" onclick="apiTestUpdate()">
+          <span class="method-badge put">PUT</span>
+          <span>/api/notes/:id</span>
+          <span class="ep-desc">Update note</span>
+        </button>
+        <button class="endpoint-btn del" onclick="apiTestDelete()">
+          <span class="method-badge del">DELETE</span>
+          <span>/api/notes/:id</span>
+          <span class="ep-desc">Delete note</span>
+        </button>
+        <button class="endpoint-btn get" onclick="apiTest('GET','/api/auth/me')">
+          <span class="method-badge get">GET</span>
+          <span>/api/auth/me</span>
+          <span class="ep-desc">Current user</span>
+        </button>
+      </div>
+
+      <div class="console-panel">
+        <div class="console-toolbar">
+          <span class="console-dot red"></span>
+          <span class="console-dot amber"></span>
+          <span class="console-dot green"></span>
+          <span class="console-label">HTTP Client</span>
+        </div>
+        <div id="api-log" class="api-log">
+          <div class="log-placeholder">// Click an endpoint to see the real HTTP request & response</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PROFILE VIEW ─── -->
+    <div id="view-profile" class="view hidden">
+      <div class="view-header">
+        <div>
+          <h1 class="view-title">Profile</h1>
+          <p class="view-subtitle">Your account & database info</p>
+        </div>
+      </div>
+
+      <div class="profile-grid">
+        <div class="info-card">
+          <h3 class="card-title">Account Details</h3>
+          <div class="info-row"><span class="info-label">Name</span><span class="info-val" id="profile-name">—</span></div>
+          <div class="info-row"><span class="info-label">Email</span><span class="info-val" id="profile-email">—</span></div>
+          <div class="info-row"><span class="info-label">User ID</span><span class="info-val mono" id="profile-id">—</span></div>
+          <div class="info-row"><span class="info-label">Joined</span><span class="info-val" id="profile-joined">—</span></div>
+        </div>
+
+        <div class="info-card">
+          <h3 class="card-title">JWT Token</h3>
+          <div class="token-parts">
+            <div class="token-part header">
+              <span class="part-label">Header</span>
+              <span class="part-val" id="jwt-header">—</span>
+            </div>
+            <div class="token-part payload">
+              <span class="part-label">Payload</span>
+              <span class="part-val" id="jwt-payload">—</span>
+            </div>
+            <div class="token-part sig">
+              <span class="part-label">Signature</span>
+              <span class="part-val">••••••••</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3 class="card-title">ORM Schema</h3>
+          <pre class="schema-code">-- users table
+CREATE TABLE users (
+  id         INTEGER PRIMARY KEY,
+  name       TEXT NOT NULL,
+  email      TEXT UNIQUE NOT NULL,
+  password   TEXT NOT NULL,  -- bcrypt hash
+  created_at DATETIME DEFAULT NOW
+);
+
+-- notes table
+CREATE TABLE notes (
+  id         INTEGER PRIMARY KEY,
+  user_id    INTEGER REFERENCES users(id),
+  title      TEXT NOT NULL,
+  content    TEXT,
+  category   TEXT DEFAULT 'General',
+  created_at DATETIME DEFAULT NOW,
+  updated_at DATETIME DEFAULT NOW
+);</pre>
+        </div>
+
+        <div class="info-card">
+          <h3 class="card-title">Stats</h3>
+          <div class="stats-grid">
+            <div class="stat-box"><span class="stat-num" id="stat-notes">0</span><span class="stat-label">Total notes</span></div>
+            <div class="stat-box"><span class="stat-num" id="stat-token">Active</span><span class="stat-label">JWT status</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ MODAL ═══ -->
+<div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2 id="modal-title">New Note</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group">
+        <label>Title <span class="required">*</span></label>
+        <input type="text" id="note-title" placeholder="Note title…"/>
+      </div>
+      <div class="field-group">
+        <label>Category</label>
+        <select id="note-category">
+          <option>General</option>
+          <option>Work</option>
+          <option>Personal</option>
+          <option>Ideas</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Content</label>
+        <textarea id="note-content" rows="5" placeholder="Write your note here…"></textarea>
+      </div>
+      <div id="modal-error" class="form-error hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" id="modal-save-btn" onclick="saveNote()">Save Note</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
