@@ -1,4 +1,4 @@
-# NoteStack — Full-Stack Demo App
+# rajStack — Full-Stack Demo App
 
 A complete full-stack web application demonstrating:
 - **User Authentication** (Register, Login, JWT)
