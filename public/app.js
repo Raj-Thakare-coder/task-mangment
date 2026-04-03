@@ -13,18 +13,28 @@ let isSubmitting = false;
 // DOM & View Management
 // ═══════════════════════════════════════════════════════════════════════
 
-const authScreen = document.getElementById('auth-screen');
-const appScreen = document.getElementById('app-screen');
-
 function showScreen(screen) {
-  authScreen.classList.toggle('hidden', screen !== 'auth');
-  appScreen.classList.toggle('hidden', screen !== 'app');
+  console.log('Switching to screen:', screen);
+  const authEl = document.getElementById('auth-screen');
+  const appEl = document.getElementById('app-screen');
+  
+  if (screen === 'auth') {
+    if (authEl) authEl.classList.add('active');
+    if (appEl) appEl.classList.add('hidden');
+  } else {
+    if (authEl) authEl.classList.remove('active');
+    if (appEl) appEl.classList.remove('hidden');
+  }
 }
 
 function showView(view) {
+  console.log('Switching to view:', view);
+  
   const views = document.querySelectorAll('.view');
-  views.forEach(v => v.classList.add('hidden'));
-  views.forEach(v => v.classList.remove('active'));
+  views.forEach(v => {
+    v.classList.add('hidden');
+    v.classList.remove('active');
+  });
   
   const navItems = document.querySelectorAll('.nav-item');
   navItems.forEach(item => item.classList.remove('active'));
@@ -33,13 +43,23 @@ function showView(view) {
   if (targetView) {
     targetView.classList.remove('hidden');
     targetView.classList.add('active');
+    console.log(`View ${view} shown`);
+  } else {
+    console.warn(`View view-${view} not found`);
   }
   
   const activeNav = document.querySelector(`[data-view="${view}"]`);
   if (activeNav) activeNav.classList.add('active');
   
-  if (view === 'notes') loadNotes();
-  if (view === 'profile') loadProfile();
+  // Load data for specific views
+  if (view === 'notes') {
+    console.log('Loading notes...');
+    loadNotes();
+  }
+  if (view === 'profile') {
+    console.log('Loading profile...');
+    loadProfile();
+  }
 }
 
 function switchAuthTab(tab) {
@@ -180,12 +200,16 @@ async function loadNotes() {
       headers: { 'Authorization': `Bearer ${authToken}` }
     });
     
-    if (!res.ok) throw new Error('Failed to load notes');
+    if (!res.ok) {
+      console.error('Failed to load notes:', res.status);
+      return;
+    }
     
-    notes = await res.json();
+    const data = await res.json();
+    notes = data.notes || [];
     renderNotes();
   } catch (err) {
-    console.error(err);
+    console.error('Error loading notes:', err);
   }
 }
 
@@ -255,6 +279,10 @@ async function createNote() {
   }
 }
 
+function saveNote() {
+  createNote();
+}
+
 function openModal() {
   const modal = document.getElementById('modal-overlay');
   if (modal) modal.classList.remove('hidden');
@@ -318,7 +346,12 @@ function loadProfile() {
 }
 
 function updateSidebar() {
-  if (!currentUser) return;
+  if (!currentUser) {
+    console.warn('No current user to update sidebar');
+    return;
+  }
+  
+  console.log('Updating sidebar with user:', currentUser.name);
   
   const avatar = document.getElementById('sidebar-avatar');
   const name = document.getElementById('sidebar-name');
@@ -422,6 +455,8 @@ function escapeHtml(text) {
 // ═══════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('Page loaded, authToken:', !!authToken);
+  
   if (authToken) {
     // Reload user info from auth endpoint
     fetch('/api/auth/me', {
@@ -429,17 +464,24 @@ document.addEventListener('DOMContentLoaded', () => {
     })
     .then(r => r.json())
     .then(data => {
-      currentUser = data;
-      updateSidebar();
-      showScreen('app');
-      showView('notes');
+      if (data.user) {
+        currentUser = data.user;
+        console.log('User loaded:', currentUser.name);
+        updateSidebar();
+        showScreen('app');
+        showView('notes');
+      } else {
+        throw new Error('No user data');
+      }
     })
-    .catch(() => {
+    .catch(err => {
+      console.error('Failed to load user:', err);
       authToken = null;
       localStorage.removeItem('authToken');
       showScreen('auth');
     });
   } else {
+    console.log('No auth token, showing login');
     showScreen('auth');
   }
 });
