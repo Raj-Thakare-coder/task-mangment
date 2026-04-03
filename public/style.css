@@ -320,6 +320,31 @@ textarea { resize: vertical; min-height: 100px; }
 /* ═══════════════════════════════════════ MAIN CONTENT ═══ */
 .main-content { flex: 1; padding: 32px; overflow-y: auto; min-width: 0; }
 
+.top-user-bar {
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  margin: 0 0 10px 0;
+  background: rgba(20, 20, 28, 0.92);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(6px);
+}
+
+.top-user-label {
+  color: var(--muted2);
+  font-size: 13px;
+}
+
+.top-user-name {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+}
+
 .view { display: none; }
 .view.active { display: block; }
 

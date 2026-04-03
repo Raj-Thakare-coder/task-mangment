@@ -1,4 +1,4 @@
-# rajStack — Full-Stack Demo App
+# RajStack — Full-Stack Demo App
 
 A complete full-stack web application demonstrating:
 - **User Authentication** (Register, Login, JWT)
