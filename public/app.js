@@ -1,487 +1,252 @@
-'use strict'; // RajStack Frontend
+const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-// ═══════════════════════════════════════════════════════════════════════
-// Global State
-// ═══════════════════════════════════════════════════════════════════════
+const app = express();
+const PORT = 3000;
+const JWT_SECRET = 'dev-secret-key-change-in-production';
+const DATA_FILE = path.join(__dirname, 'data.json');
 
-let authToken = localStorage.getItem('authToken') || null;
-let currentUser = null;
-let notes = [];
-let isSubmitting = false;
-
-// ═══════════════════════════════════════════════════════════════════════
-// DOM & View Management
-// ═══════════════════════════════════════════════════════════════════════
-
-function showScreen(screen) {
-  console.log('Switching to screen:', screen);
-  const authEl = document.getElementById('auth-screen');
-  const appEl = document.getElementById('app-screen');
-  
-  if (screen === 'auth') {
-    if (authEl) authEl.classList.add('active');
-    if (appEl) appEl.classList.add('hidden');
-  } else {
-    if (authEl) authEl.classList.remove('active');
-    if (appEl) appEl.classList.remove('hidden');
-  }
-}
-
-function showView(view) {
-  console.log('Switching to view:', view);
-  
-  const views = document.querySelectorAll('.view');
-  views.forEach(v => {
-    v.classList.add('hidden');
-    v.classList.remove('active');
-  });
-  
-  const navItems = document.querySelectorAll('.nav-item');
-  navItems.forEach(item => item.classList.remove('active'));
-  
-  const targetView = document.getElementById(`view-${view}`);
-  if (targetView) {
-    targetView.classList.remove('hidden');
-    targetView.classList.add('active');
-    console.log(`View ${view} shown`);
-  } else {
-    console.warn(`View view-${view} not found`);
-  }
-  
-  const activeNav = document.querySelector(`[data-view="${view}"]`);
-  if (activeNav) activeNav.classList.add('active');
-  
-  // Load data for specific views
-  if (view === 'notes') {
-    console.log('Loading notes...');
-    loadNotes();
-  }
-  if (view === 'profile') {
-    console.log('Loading profile...');
-    loadProfile();
-  }
-}
-
-function switchAuthTab(tab) {
-  const tabs = document.querySelectorAll('.auth-tab');
-  const forms = document.querySelectorAll('.auth-form');
-  
-  tabs.forEach(t => t.classList.remove('active'));
-  forms.forEach(f => f.classList.add('hidden'));
-  
-  document.querySelector(`[onclick*="'${tab}'"]`)?.classList.add('active');
-  document.getElementById(`${tab}-form`)?.classList.remove('hidden');
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Authentication
-// ═══════════════════════════════════════════════════════════════════════
-
-async function handleRegister() {
-  if (isSubmitting) return;
-  
-  const name = document.getElementById('reg-name').value.trim();
-  const email = document.getElementById('reg-email').value.trim();
-  const password = document.getElementById('reg-password').value;
-  const errorEl = document.getElementById('reg-error');
-  
-  if (!name || !email || password.length < 6) {
-    errorEl.textContent = 'All fields required. Password min 6 chars.';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-  
-  isSubmitting = true;
-  
-  try {
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password })
-    });
-    
-    const data = await res.json();
-    
-    if (!res.ok) {
-      throw new Error(data.message || 'Registration failed');
-    }
-    
-    authToken = data.token;
-    localStorage.setItem('authToken', authToken);
-    currentUser = data.user;
-    
-    document.getElementById('reg-name').value = '';
-    document.getElementById('reg-email').value = '';
-    document.getElementById('reg-password').value = '';
-    errorEl.classList.add('hidden');
-    
-    updateSidebar();
-    showScreen('app');
-    showView('notes');
-  } catch (err) {
-    errorEl.textContent = err.message;
-    errorEl.classList.remove('hidden');
-  } finally {
-    isSubmitting = false;
-  }
-}
-
-async function handleLogin() {
-  if (isSubmitting) return;
-  
-  const email = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
-  const errorEl = document.getElementById('login-error');
-  
-  if (!email || !password) {
-    errorEl.textContent = 'Email and password required';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-  
-  isSubmitting = true;
-  
-  try {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    
-    const data = await res.json();
-    
-    if (!res.ok) {
-      throw new Error(data.message || 'Login failed');
-    }
-    
-    authToken = data.token;
-    localStorage.setItem('authToken', authToken);
-    currentUser = data.user;
-    
-    document.getElementById('login-email').value = '';
-    document.getElementById('login-password').value = '';
-    errorEl.classList.add('hidden');
-    
-    updateSidebar();
-    showScreen('app');
-    showView('notes');
-  } catch (err) {
-    errorEl.textContent = err.message;
-    errorEl.classList.remove('hidden');
-  } finally {
-    isSubmitting = false;
-  }
-}
-
-function handleLogout() {
-  authToken = null;
-  currentUser = null;
-  localStorage.removeItem('authToken');
-  
-  document.getElementById('login-email').value = '';
-  document.getElementById('login-password').value = '';
-  document.getElementById('reg-name').value = '';
-  document.getElementById('reg-email').value = '';
-  document.getElementById('reg-password').value = '';
-  
-  showScreen('auth');
-  switchAuthTab('login');
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Notes CRUD
-// ═══════════════════════════════════════════════════════════════════════
-
-async function loadNotes() {
-  if (!authToken) return;
-  
-  try {
-    const res = await fetch('/api/notes', {
-      headers: { 'Authorization': `Bearer ${authToken}` }
-    });
-    
-    if (!res.ok) {
-      console.error('Failed to load notes:', res.status);
-      return;
-    }
-    
-    const data = await res.json();
-    notes = data.notes || [];
-    renderNotes();
-  } catch (err) {
-    console.error('Error loading notes:', err);
-  }
-}
-
-function renderNotes() {
-  const container = document.getElementById('notes-grid');
-  const emptyState = document.getElementById('notes-empty');
-  
-  if (!container) return;
-  
-  if (notes.length === 0) {
-    container.innerHTML = '';
-    emptyState.classList.remove('hidden');
-    return;
-  }
-  
-  emptyState.classList.add('hidden');
-  container.innerHTML = notes.map(note => `
-    <div class="note-card">
-      <div class="note-card-header">
-        <h3 class="note-title">${escapeHtml(note.title)}</h3>
-        <button class="note-menu" onclick="deleteNote(${note.id})">✕</button>
-      </div>
-      <p class="note-content">${escapeHtml(note.content)}</p>
-      <div class="note-footer">
-        <span class="note-category">${note.category || 'General'}</span>
-        <span class="note-date">${new Date(note.created_at).toLocaleDateString()}</span>
-      </div>
-    </div>
-  `).join('');
-}
-
-async function createNote() {
-  const title = document.getElementById('note-title')?.value.trim();
-  const content = document.getElementById('note-content')?.value.trim();
-  const category = document.getElementById('note-category')?.value || 'General';
-  
-  if (!title || !content) {
-    const errorEl = document.getElementById('modal-error');
-    errorEl.textContent = 'Title and content required';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-  
-  try {
-    const res = await fetch('/api/notes', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      },
-      body: JSON.stringify({ title, content, category })
-    });
-    
-    if (!res.ok) throw new Error('Failed to create note');
-    
-    document.getElementById('note-title').value = '';
-    document.getElementById('note-content').value = '';
-    document.getElementById('note-category').value = 'General';
-    
-    closeModal();
-    loadNotes();
-  } catch (err) {
-    console.error(err);
-    const errorEl = document.getElementById('modal-error');
-    errorEl.textContent = err.message;
-    errorEl.classList.remove('hidden');
-  }
-}
-
-function saveNote() {
-  createNote();
-}
-
-function openModal() {
-  const modal = document.getElementById('modal-overlay');
-  if (modal) modal.classList.remove('hidden');
-}
-
-function closeModal(event) {
-  if (event && event.target.id !== 'modal-overlay') return;
-  const modal = document.getElementById('modal-overlay');
-  if (modal) modal.classList.add('hidden');
-  document.getElementById('modal-error').classList.add('hidden');
-}
-
-async function deleteNote(id) {
-  if (!confirm('Delete this note?')) return;
-  
-  try {
-    const res = await fetch(`/api/notes/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${authToken}` }
-    });
-    
-    if (!res.ok) throw new Error('Failed to delete note');
-    
-    loadNotes();
-  } catch (err) {
-    console.error(err);
-    alert(err.message);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Profile
-// ═══════════════════════════════════════════════════════════════════════
-
-function loadProfile() {
-  if (!currentUser || !authToken) return;
-  
-  document.getElementById('profile-name').textContent = currentUser.name || '—';
-  document.getElementById('profile-email').textContent = currentUser.email || '—';
-  document.getElementById('profile-id').textContent = currentUser.id || '—';
-  document.getElementById('profile-joined').textContent = new Date(currentUser.created_at).toLocaleDateString() || '—';
-  
-  // Decode JWT for display
-  try {
-    const parts = authToken.split('.');
-    if (parts[0]) {
-      const header = JSON.parse(atob(parts[0]));
-      document.getElementById('jwt-header').textContent = JSON.stringify(header);
-    }
-    if (parts[1]) {
-      const payload = JSON.parse(atob(parts[1]));
-      document.getElementById('jwt-payload').textContent = JSON.stringify(payload);
-    }
-  } catch (e) {
-    console.log('JWT decode error:', e);
-  }
-  
-  // Stats
-  document.getElementById('stat-notes').textContent = notes.length;
-  document.getElementById('stat-token').textContent = 'Active';
-}
-
-function updateSidebar() {
-  if (!currentUser) {
-    console.warn('No current user to update sidebar');
-    return;
-  }
-  
-  console.log('Updating sidebar with user:', currentUser.name);
-  
-  const avatar = document.getElementById('sidebar-avatar');
-  const name = document.getElementById('sidebar-name');
-  const email = document.getElementById('sidebar-email');
-  
-  if (avatar) avatar.textContent = currentUser.name?.[0]?.toUpperCase() || 'U';
-  if (name) name.textContent = currentUser.name || 'User';
-  if (email) email.textContent = currentUser.email || '';
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// API Console
-// ═══════════════════════════════════════════════════════════════════════
-
-function getApiToken() {
-  return authToken || 'No token';
-}
-
-async function apiTest(method, endpoint, body = null) {
-  const logEl = document.getElementById('api-log');
-  const options = {
-    method,
-    headers: { 'Authorization': `Bearer ${authToken}` }
+function createDefaultStore() {
+  return {
+    users: [],
+    notes: []
   };
-  
-  if (body) {
-    options.headers['Content-Type'] = 'application/json';
-    options.body = JSON.stringify(body);
+}
+
+function loadStore() {
+  if (!fs.existsSync(DATA_FILE)) {
+    const initialStore = createDefaultStore();
+    fs.writeFileSync(DATA_FILE, JSON.stringify(initialStore, null, 2));
+    return initialStore;
   }
-  
+
   try {
-    const res = await fetch(endpoint, options);
-    const data = await res.json();
-    
-    const logEntry = document.createElement('div');
-    logEntry.className = 'log-entry';
-    logEntry.innerHTML = `
-      <span class="log-method ${method.toLowerCase()}">${method}</span>
-      <span class="log-endpoint">${endpoint}</span>
-      <span class="log-status">${res.status}</span>
-      <pre>${JSON.stringify(data, null, 2)}</pre>
-    `;
-    logEl.innerHTML = logEntry.innerHTML;
-  } catch (err) {
-    logEl.textContent = 'Error: ' + err.message;
+    const raw = fs.readFileSync(DATA_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    return {
+      users: Array.isArray(parsed.users) ? parsed.users : [],
+      notes: Array.isArray(parsed.notes) ? parsed.notes : []
+    };
+  } catch {
+    const fallbackStore = createDefaultStore();
+    fs.writeFileSync(DATA_FILE, JSON.stringify(fallbackStore, null, 2));
+    return fallbackStore;
   }
 }
 
-function apiTestOne() {
-  if (notes.length === 0) {
-    alert('Create a note first');
-    return;
+function saveStore() {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2));
+}
+
+function nextId(items) {
+  return items.reduce((maxId, item) => Math.max(maxId, Number(item.id) || 0), 0) + 1;
+}
+
+function sanitizeUser(user) {
+  if (!user) return null;
+  const { password, ...safeUser } = user;
+  return safeUser;
+}
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function getUserByEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  return store.users.find((user) => user.email === normalizedEmail) || null;
+}
+
+function getUserById(id) {
+  return store.users.find((user) => user.id === Number(id)) || null;
+}
+
+function getNotesForUser(userId) {
+  return store.notes
+    .filter((note) => note.user_id === Number(userId))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+}
+
+let store = loadStore();
+
+// ─── Middleware ───────────────────────────────────────────────────────────────
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+function authGuard(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token provided' });
   }
-  apiTest('GET', `/api/notes/${notes[0].id}`);
-}
 
-function apiTestUpdate() {
-  if (notes.length === 0) {
-    alert('Create a note first');
-    return;
+  try {
+    req.user = jwt.verify(auth.slice(7), JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
-  apiTest('PUT', `/api/notes/${notes[0].id}`, { title: 'Updated', content: 'Updated content' });
 }
 
-function apiTestDelete() {
-  if (notes.length === 0) {
-    alert('Create a note first');
-    return;
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   }
-  apiTest('DELETE', `/api/notes/${notes[0].id}`);
-}
+  next();
+});
 
-function clearLog() {
-  const logEl = document.getElementById('api-log');
-  if (logEl) logEl.innerHTML = '<div class="log-placeholder">// Cleared</div>';
-}
+// ─── Auth Routes ─────────────────────────────────────────────────────────────
+app.post('/api/auth/register', async (req, res) => {
+  const { name, email, password } = req.body;
+  const cleanName = String(name || '').trim();
+  const cleanEmail = normalizeEmail(email);
 
-function filterNotes(category, btn) {
-  const allBtns = document.querySelectorAll('.filter-btn');
-  allBtns.forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  // Implementation: filter display by category
-}
-
-function searchNotes(query) {
-  // Implementation: search notes by title/content
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Utilities
-// ═══════════════════════════════════════════════════════════════════════
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Initialize
-// ═══════════════════════════════════════════════════════════════════════
-
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('Page loaded, authToken:', !!authToken);
-  
-  if (authToken) {
-    // Reload user info from auth endpoint
-    fetch('/api/auth/me', {
-      headers: { 'Authorization': `Bearer ${authToken}` }
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (data.user) {
-        currentUser = data.user;
-        console.log('User loaded:', currentUser.name);
-        updateSidebar();
-        showScreen('app');
-        showView('notes');
-      } else {
-        throw new Error('No user data');
-      }
-    })
-    .catch(err => {
-      console.error('Failed to load user:', err);
-      authToken = null;
-      localStorage.removeItem('authToken');
-      showScreen('auth');
-    });
-  } else {
-    console.log('No auth token, showing login');
-    showScreen('auth');
+  if (!cleanName || !cleanEmail || !password) {
+    return res.status(400).json({ error: 'Name, email and password are required' });
   }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  if (getUserByEmail(cleanEmail)) {
+    return res.status(409).json({ error: 'Email already registered' });
+  }
+
+  const hashed = await bcrypt.hash(password, 10);
+  const user = {
+    id: nextId(store.users),
+    name: cleanName,
+    email: cleanEmail,
+    password: hashed,
+    created_at: new Date().toISOString()
+  };
+
+  store.users.push(user);
+  saveStore();
+
+  const safeUser = sanitizeUser(user);
+  const token = jwt.sign({ id: safeUser.id, email: safeUser.email }, JWT_SECRET, { expiresIn: '7d' });
+  return res.status(201).json({ user: safeUser, token });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  const user = getUserByEmail(email);
+
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  const safeUser = sanitizeUser(user);
+  const token = jwt.sign({ id: safeUser.id, email: safeUser.email }, JWT_SECRET, { expiresIn: '7d' });
+  return res.json({ user: safeUser, token });
+});
+
+app.get('/api/auth/me', authGuard, (req, res) => {
+  const user = getUserById(req.user.id);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  return res.json({ user: sanitizeUser(user) });
+});
+
+// ─── CRUD Routes (Notes) ─────────────────────────────────────────────────────
+app.post('/api/notes', authGuard, (req, res) => {
+  const { title, content = '', category = 'General' } = req.body;
+  const cleanTitle = String(title || '').trim();
+
+  if (!cleanTitle) {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+
+  const now = new Date().toISOString();
+  const note = {
+    id: nextId(store.notes),
+    user_id: Number(req.user.id),
+    title: cleanTitle,
+    content: String(content || ''),
+    category: String(category || 'General'),
+    created_at: now,
+    updated_at: now
+  };
+
+  store.notes.push(note);
+  saveStore();
+  return res.status(201).json({ note });
+});
+
+app.get('/api/notes', authGuard, (req, res) => {
+  return res.json({ notes: getNotesForUser(req.user.id) });
+});
+
+app.get('/api/notes/:id', authGuard, (req, res) => {
+  const noteId = Number(req.params.id);
+  const note = store.notes.find((item) => item.id === noteId && item.user_id === Number(req.user.id));
+
+  if (!note) {
+    return res.status(404).json({ error: 'Note not found' });
+  }
+
+  return res.json({ note });
+});
+
+app.put('/api/notes/:id', authGuard, (req, res) => {
+  const { title, content = '', category = 'General' } = req.body;
+  const cleanTitle = String(title || '').trim();
+  const noteId = Number(req.params.id);
+
+  if (!cleanTitle) {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+
+  const note = store.notes.find((item) => item.id === noteId && item.user_id === Number(req.user.id));
+  if (!note) {
+    return res.status(404).json({ error: 'Note not found' });
+  }
+
+  note.title = cleanTitle;
+  note.content = String(content || '');
+  note.category = String(category || 'General');
+  note.updated_at = new Date().toISOString();
+
+  saveStore();
+  return res.json({ note });
+});
+
+app.delete('/api/notes/:id', authGuard, (req, res) => {
+  const noteId = Number(req.params.id);
+  const index = store.notes.findIndex((item) => item.id === noteId && item.user_id === Number(req.user.id));
+
+  if (index === -1) {
+    return res.status(404).json({ error: 'Note not found' });
+  }
+
+  store.notes.splice(index, 1);
+  saveStore();
+  return res.status(204).send();
+});
+
+// ─── Fallback ─────────────────────────────────────────────────────────────────
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(`\n🚀 Server running at http://localhost:${PORT}`);
+  console.log(`📦 Data file: data.json`);
+  console.log(`🔐 JWT Secret: ${JWT_SECRET}\n`);
 });
