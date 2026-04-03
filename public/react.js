@@ -16,8 +16,15 @@
   }
 
   window.renderTopUserBar = function renderTopUserBar(name, isVisible) {
-    root.render(React.createElement(TopUserBar, { name, isVisible }));
+    try {
+      root.render(React.createElement(TopUserBar, { name, isVisible }));
+    } catch (error) {
+      console.error('React render error:', error);
+      // Fallback: hide the mount node if React fails
+      mountNode.style.display = 'none';
+    }
   };
 
+  // Initialize as hidden
   window.renderTopUserBar("", false);
 })();

@@ -11,11 +11,25 @@ function showScreen(screen) {
   const appEl = document.getElementById('app-screen');
 
   if (screen === 'auth') {
-    if (authEl) authEl.classList.add('active');
-    if (appEl) appEl.classList.add('hidden');
+    if (authEl) {
+      authEl.classList.add('active');
+      authEl.classList.remove('hidden');
+      console.log('Auth screen activated');
+    }
+    if (appEl) {
+      appEl.classList.remove('active');
+      appEl.classList.add('hidden');
+    }
   } else {
-    if (authEl) authEl.classList.remove('active');
-    if (appEl) appEl.classList.remove('hidden');
+    if (authEl) {
+      authEl.classList.remove('active');
+      authEl.classList.add('hidden');
+    }
+    if (appEl) {
+      appEl.classList.add('active');
+      appEl.classList.remove('hidden');
+      console.log('App screen activated');
+    }
   }
 }
 
