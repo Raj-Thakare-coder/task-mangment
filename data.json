@@ -20,6 +20,41 @@
       "email": "thakareneha356@gmail.com",
       "password": "$2a$10$/dHZNKPoeo2F/DUCz90LGO2T6XG/22DyjMl/TRPliBJLlM2CPM9Fy",
       "created_at": "2026-04-01T11:43:53.406Z"
+    },
+    {
+      "id": 4,
+      "name": "wkdhiewdh",
+      "email": "r@gmail.com",
+      "password": "$2a$10$0RRE0cgGL4ZyamltgHobvunUhpLwHEQ3xpRRLgP/FFZpzh5FxWKsS",
+      "created_at": "2026-04-03T06:45:55.684Z"
+    },
+    {
+      "id": 5,
+      "name": "Test User",
+      "email": "test@example.com",
+      "password": "$2a$10$xZg8Q9MD8Op1fFARGzRJzulk7pBHB9aYj/IACtgELPqCAAVqyIqpW",
+      "created_at": "2026-04-03T06:56:17.421Z"
+    },
+    {
+      "id": 6,
+      "name": "New User",
+      "email": "newuser@test.com",
+      "password": "$2a$10$UU2fgZ.RfY0cFuHw94GgcuAhRvD6S33.3xnBNcP63Pqf0.zuDQM2O",
+      "created_at": "2026-04-03T06:56:29.681Z"
+    },
+    {
+      "id": 7,
+      "name": "Test User 123",
+      "email": "testuser123@example.com",
+      "password": "$2a$10$Eg/60wK3SFYQLQq9h2I46uN17rLILJ3Of65Ioz6avK7e3t19uuKlK",
+      "created_at": "2026-04-03T06:58:08.784Z"
+    },
+    {
+      "id": 8,
+      "name": "Alice Smith",
+      "email": "alice@test.com",
+      "password": "$2a$10$pGn8wAXYMx/qaKFXw9ipg.1T1V5XvNh.2T5.eci2ui.I0p1kCjjAG",
+      "created_at": "2026-04-03T06:59:07.763Z"
     }
   ],
   "notes": [
