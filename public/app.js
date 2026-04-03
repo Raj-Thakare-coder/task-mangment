@@ -7,6 +7,7 @@
 let authToken = localStorage.getItem('authToken') || null;
 let currentUser = null;
 let notes = [];
+let isSubmitting = false;
 
 // ═══════════════════════════════════════════════════════════════════════
 // DOM & View Management
@@ -57,6 +58,8 @@ function switchAuthTab(tab) {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function handleRegister() {
+  if (isSubmitting) return;
+  
   const name = document.getElementById('reg-name').value.trim();
   const email = document.getElementById('reg-email').value.trim();
   const password = document.getElementById('reg-password').value;
@@ -67,6 +70,8 @@ async function handleRegister() {
     errorEl.classList.remove('hidden');
     return;
   }
+  
+  isSubmitting = true;
   
   try {
     const res = await fetch('/api/auth/register', {
@@ -96,10 +101,14 @@ async function handleRegister() {
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.classList.remove('hidden');
+  } finally {
+    isSubmitting = false;
   }
 }
 
 async function handleLogin() {
+  if (isSubmitting) return;
+  
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
   const errorEl = document.getElementById('login-error');
@@ -109,6 +118,8 @@ async function handleLogin() {
     errorEl.classList.remove('hidden');
     return;
   }
+  
+  isSubmitting = true;
   
   try {
     const res = await fetch('/api/auth/login', {
@@ -137,6 +148,8 @@ async function handleLogin() {
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.classList.remove('hidden');
+  } finally {
+    isSubmitting = false;
   }
 }
 
