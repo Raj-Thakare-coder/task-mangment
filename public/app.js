@@ -21,14 +21,18 @@ function showScreen(screen) {
 }
 
 function showView(view) {
-  const views = document.querySelectorAll('.view-panel');
+  const views = document.querySelectorAll('.view');
   views.forEach(v => v.classList.add('hidden'));
+  views.forEach(v => v.classList.remove('active'));
   
   const navItems = document.querySelectorAll('.nav-item');
   navItems.forEach(item => item.classList.remove('active'));
   
   const targetView = document.getElementById(`view-${view}`);
-  if (targetView) targetView.classList.remove('hidden');
+  if (targetView) {
+    targetView.classList.remove('hidden');
+    targetView.classList.add('active');
+  }
   
   const activeNav = document.querySelector(`[data-view="${view}"]`);
   if (activeNav) activeNav.classList.add('active');
@@ -86,6 +90,7 @@ async function handleRegister() {
     document.getElementById('reg-password').value = '';
     errorEl.classList.add('hidden');
     
+    updateSidebar();
     showScreen('app');
     showView('notes');
   } catch (err) {
@@ -126,6 +131,7 @@ async function handleLogin() {
     document.getElementById('login-password').value = '';
     errorEl.classList.add('hidden');
     
+    updateSidebar();
     showScreen('app');
     showView('notes');
   } catch (err) {
@@ -171,17 +177,29 @@ async function loadNotes() {
 }
 
 function renderNotes() {
-  const container = document.getElementById('notes-list');
+  const container = document.getElementById('notes-grid');
+  const emptyState = document.getElementById('notes-empty');
+  
   if (!container) return;
   
+  if (notes.length === 0) {
+    container.innerHTML = '';
+    emptyState.classList.remove('hidden');
+    return;
+  }
+  
+  emptyState.classList.add('hidden');
   container.innerHTML = notes.map(note => `
-    <div class="note-item">
-      <div class="note-header">
-        <h3>${escapeHtml(note.title)}</h3>
-        <button class="btn-small" onclick="deleteNote(${note.id})">Delete</button>
+    <div class="note-card">
+      <div class="note-card-header">
+        <h3 class="note-title">${escapeHtml(note.title)}</h3>
+        <button class="note-menu" onclick="deleteNote(${note.id})">✕</button>
       </div>
-      <p>${escapeHtml(note.content)}</p>
-      <small>${new Date(note.created_at).toLocaleDateString()}</small>
+      <p class="note-content">${escapeHtml(note.content)}</p>
+      <div class="note-footer">
+        <span class="note-category">${note.category || 'General'}</span>
+        <span class="note-date">${new Date(note.created_at).toLocaleDateString()}</span>
+      </div>
     </div>
   `).join('');
 }
@@ -189,9 +207,12 @@ function renderNotes() {
 async function createNote() {
   const title = document.getElementById('note-title')?.value.trim();
   const content = document.getElementById('note-content')?.value.trim();
+  const category = document.getElementById('note-category')?.value || 'General';
   
   if (!title || !content) {
-    alert('Title and content required');
+    const errorEl = document.getElementById('modal-error');
+    errorEl.textContent = 'Title and content required';
+    errorEl.classList.remove('hidden');
     return;
   }
   
@@ -202,19 +223,35 @@ async function createNote() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${authToken}`
       },
-      body: JSON.stringify({ title, content })
+      body: JSON.stringify({ title, content, category })
     });
     
     if (!res.ok) throw new Error('Failed to create note');
     
     document.getElementById('note-title').value = '';
     document.getElementById('note-content').value = '';
+    document.getElementById('note-category').value = 'General';
     
+    closeModal();
     loadNotes();
   } catch (err) {
     console.error(err);
-    alert(err.message);
+    const errorEl = document.getElementById('modal-error');
+    errorEl.textContent = err.message;
+    errorEl.classList.remove('hidden');
   }
+}
+
+function openModal() {
+  const modal = document.getElementById('modal-overlay');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeModal(event) {
+  if (event && event.target.id !== 'modal-overlay') return;
+  const modal = document.getElementById('modal-overlay');
+  if (modal) modal.classList.add('hidden');
+  document.getElementById('modal-error').classList.add('hidden');
 }
 
 async function deleteNote(id) {
@@ -240,16 +277,43 @@ async function deleteNote(id) {
 // ═══════════════════════════════════════════════════════════════════════
 
 function loadProfile() {
-  const profileContent = document.getElementById('profile-content');
-  if (!profileContent || !currentUser) return;
+  if (!currentUser || !authToken) return;
   
-  profileContent.innerHTML = `
-    <div class="profile-card">
-      <h2>${escapeHtml(currentUser.name)}</h2>
-      <p><strong>Email:</strong> ${escapeHtml(currentUser.email)}</p>
-      <button class="btn-primary" onclick="handleLogout()">Sign out</button>
-    </div>
-  `;
+  document.getElementById('profile-name').textContent = currentUser.name || '—';
+  document.getElementById('profile-email').textContent = currentUser.email || '—';
+  document.getElementById('profile-id').textContent = currentUser.id || '—';
+  document.getElementById('profile-joined').textContent = new Date(currentUser.created_at).toLocaleDateString() || '—';
+  
+  // Decode JWT for display
+  try {
+    const parts = authToken.split('.');
+    if (parts[0]) {
+      const header = JSON.parse(atob(parts[0]));
+      document.getElementById('jwt-header').textContent = JSON.stringify(header);
+    }
+    if (parts[1]) {
+      const payload = JSON.parse(atob(parts[1]));
+      document.getElementById('jwt-payload').textContent = JSON.stringify(payload);
+    }
+  } catch (e) {
+    console.log('JWT decode error:', e);
+  }
+  
+  // Stats
+  document.getElementById('stat-notes').textContent = notes.length;
+  document.getElementById('stat-token').textContent = 'Active';
+}
+
+function updateSidebar() {
+  if (!currentUser) return;
+  
+  const avatar = document.getElementById('sidebar-avatar');
+  const name = document.getElementById('sidebar-name');
+  const email = document.getElementById('sidebar-email');
+  
+  if (avatar) avatar.textContent = currentUser.name?.[0]?.toUpperCase() || 'U';
+  if (name) name.textContent = currentUser.name || 'User';
+  if (email) email.textContent = currentUser.email || '';
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -258,6 +322,76 @@ function loadProfile() {
 
 function getApiToken() {
   return authToken || 'No token';
+}
+
+async function apiTest(method, endpoint, body = null) {
+  const logEl = document.getElementById('api-log');
+  const options = {
+    method,
+    headers: { 'Authorization': `Bearer ${authToken}` }
+  };
+  
+  if (body) {
+    options.headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(body);
+  }
+  
+  try {
+    const res = await fetch(endpoint, options);
+    const data = await res.json();
+    
+    const logEntry = document.createElement('div');
+    logEntry.className = 'log-entry';
+    logEntry.innerHTML = `
+      <span class="log-method ${method.toLowerCase()}">${method}</span>
+      <span class="log-endpoint">${endpoint}</span>
+      <span class="log-status">${res.status}</span>
+      <pre>${JSON.stringify(data, null, 2)}</pre>
+    `;
+    logEl.innerHTML = logEntry.innerHTML;
+  } catch (err) {
+    logEl.textContent = 'Error: ' + err.message;
+  }
+}
+
+function apiTestOne() {
+  if (notes.length === 0) {
+    alert('Create a note first');
+    return;
+  }
+  apiTest('GET', `/api/notes/${notes[0].id}`);
+}
+
+function apiTestUpdate() {
+  if (notes.length === 0) {
+    alert('Create a note first');
+    return;
+  }
+  apiTest('PUT', `/api/notes/${notes[0].id}`, { title: 'Updated', content: 'Updated content' });
+}
+
+function apiTestDelete() {
+  if (notes.length === 0) {
+    alert('Create a note first');
+    return;
+  }
+  apiTest('DELETE', `/api/notes/${notes[0].id}`);
+}
+
+function clearLog() {
+  const logEl = document.getElementById('api-log');
+  if (logEl) logEl.innerHTML = '<div class="log-placeholder">// Cleared</div>';
+}
+
+function filterNotes(category, btn) {
+  const allBtns = document.querySelectorAll('.filter-btn');
+  allBtns.forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // Implementation: filter display by category
+}
+
+function searchNotes(query) {
+  // Implementation: search notes by title/content
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -276,8 +410,22 @@ function escapeHtml(text) {
 
 document.addEventListener('DOMContentLoaded', () => {
   if (authToken) {
-    showScreen('app');
-    showView('notes');
+    // Reload user info from auth endpoint
+    fetch('/api/auth/me', {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    })
+    .then(r => r.json())
+    .then(data => {
+      currentUser = data;
+      updateSidebar();
+      showScreen('app');
+      showView('notes');
+    })
+    .catch(() => {
+      authToken = null;
+      localStorage.removeItem('authToken');
+      showScreen('auth');
+    });
   } else {
     showScreen('auth');
   }
